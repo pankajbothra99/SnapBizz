@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A business card with a scan line -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- card -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M30,38h48a4,4 0,0 1,4 4v26a4,4 0,0 1,-4 4h-48a4,4 0,0 1,-4 -4v-26a4,4 0,0 1,4 -4z" />
+    <!-- avatar -->
+    <path android:fillColor="#1F4E79"
+        android:pathData="M41,50m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#1F4E79"
+        android:pathData="M33,64c0,-5 4,-7 8,-7s8,2 8,7z" />
+    <!-- text lines -->
+    <path android:fillColor="#9CC3E8" android:pathData="M54,47h20v3h-20z" />
+    <path android:fillColor="#9CC3E8" android:pathData="M54,54h16v3h-16z" />
+    <path android:fillColor="#9CC3E8" android:pathData="M54,61h18v3h-18z" />
+    <!-- scan line -->
+    <path android:fillColor="#E8A56B" android:pathData="M22,54h64v2.5h-64z" />
+    <!-- corner brackets -->
+    <path android:fillColor="#E8A56B" android:pathData="M22,32h10v2.5h-7.5v7.5h-2.5z" />
+    <path android:fillColor="#E8A56B" android:pathData="M86,32h-10v2.5h7.5v7.5h2.5z" />
+    <path android:fillColor="#E8A56B" android:pathData="M22,78h10v-2.5h-7.5v-7.5h-2.5z" />
+    <path android:fillColor="#E8A56B" android:pathData="M86,78h-10v-2.5h7.5v-7.5h2.5z" />
+</vector>
