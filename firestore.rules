@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// Card Scanner – security rules for the company's free Firebase database.
+// Paste this whole file into: Firebase console → Firestore Database → Rules → Publish.
+//
+// Who can do what:
+// - Only signed-in people with a verified email (Google sign-in is always verified).
+// - The first person to set up the company becomes admin.
+// - Admins add staff by email (members collection). Anyone not added can't see anything.
+// - "company" cards: every team member can see them. "private" cards: only the owner and admins.
+// - Only the person who scanned a card, or an admin, can change or delete it.
+// - Events: shown to the people added to them (and admins); anyone in the team can create one.
+// - Sub-groups inside an event (e.g. "Scrap", "Finished products"): only admins can add, rename or delete them.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function verified() {
+      return signedIn() &&
+        (request.auth.token.email_verified == true ||
+         request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+    function teamPath() { return /databases/$(database)/documents/config/team; }
+    function isAdmin() {
+      return verified() && exists(teamPath()) && myEmail() in get(teamPath()).data.admins;
+    }
+    function isMember() {
+      return verified() &&
+        (isAdmin() || exists(/databases/$(database)/documents/members/$(myEmail())));
+    }
+    function canSee(card) {
+      return isAdmin() ||
+        (isMember() && (card.visibility == 'company' || card.ownerEmail == myEmail()));
+    }
+    function canChange(card) {
+      return isAdmin() || (isMember() && card.ownerEmail == myEmail());
+    }
+
+    // Company name and list of admin emails.
+    match /config/team {
+      allow get: if verified();
+      // First-time setup: the person creating it must be the only admin.
+      allow create: if verified() && !exists(teamPath()) && request.resource.data.admins == [myEmail()];
+      // Admins can rename or change admins, but can't remove themselves.
+      allow update: if isAdmin() && myEmail() in request.resource.data.admins;
+      allow delete: if false;
+    }
+
+    // The shared free AI key: readable by the team, set by admins.
+    match /config/ai {
+      allow get: if isMember();
+      allow write: if isAdmin();
+    }
+
+    // Staff list (document id = lowercase email). The team can read it to add colleagues to events.
+    match /members/{email} {
+      allow get: if verified() && (email == myEmail() || isMember());
+      allow list: if isMember();
+      allow write: if isAdmin();
+    }
+
+    // Events (exhibitions etc.). Visible to the people added to them, and to admins.
+    // Anyone in the team can create one; the creator or an admin can change it (members, close).
+    // Only admins can change the sub-groups.
+    match /events/{eventId} {
+      allow get, list: if isAdmin() || (isMember() && myEmail() in resource.data.members);
+      allow create: if isAdmin() || (isMember() && request.resource.data.createdBy == myEmail() &&
+        myEmail() in request.resource.data.members &&
+        request.resource.data.get('subGroups', []).size() == 0);
+      allow update: if isAdmin() || (isMember() && resource.data.createdBy == myEmail() &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.get('subGroups', []) == resource.data.get('subGroups', []));
+      allow delete: if isAdmin() || (isMember() && resource.data.createdBy == myEmail());
+    }
+
+    match /cards/{cardId} {
+      allow get, list: if canSee(resource.data);
+      allow create: if isMember() && request.resource.data.ownerEmail == myEmail();
+      allow update: if canChange(resource.data) &&
+        request.resource.data.ownerEmail == resource.data.ownerEmail;
+      allow delete: if canChange(resource.data);
+    }
+
+    // Card photos (one document per side, small JPEG).
+    match /cardImages/{imageId} {
+      allow get, list: if canSee(resource.data);
+      allow create: if isMember() && request.resource.data.ownerEmail == myEmail();
+      allow update: if canChange(resource.data) &&
+        request.resource.data.ownerEmail == resource.data.ownerEmail;
+      allow delete: if canChange(resource.data);
+    }
+  }
+}

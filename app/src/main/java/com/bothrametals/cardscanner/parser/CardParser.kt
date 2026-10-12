@@ -345,6 +345,11 @@ object CardParser {
         addressBlocks.drop(1).forEach { extras += "Other address: $it" }
         candidates.forEachIndexed { pos, c -> if (pos !in assigned) extras += c.text }
 
+        // What they do + search keywords (products, services, materials)
+        val business = KeywordExtractor.businessLine(extras)
+        if (business.isNotEmpty()) extras.remove(business)
+        val keywords = KeywordExtractor.keywords(listOf(company, business) + extras)
+
         return CardFields(
             prefix = prefix,
             name = name,
@@ -357,6 +362,8 @@ object CardParser {
             websites = websites.toList().filterNot { w -> emails.any { e -> e.endsWith("@$w") } || w.isBlank() },
             address = address,
             gstin = gstin,
+            business = business,
+            keywords = keywords,
             extraInfo = extras.joinToString("\n"),
         )
     }
@@ -364,7 +371,7 @@ object CardParser {
     // ---------------------------------------------------------------- phones
 
     /** Returns the phone numbers found in [text] plus the text with those numbers blanked out. */
-    fun extractPhones(text: String): Pair<List<Pair<String, PhoneType>>, String> {
+    fun extractPhones(text: String, defaultLabel: PhoneType? = null): Pair<List<Pair<String, PhoneType>>, String> {
         val found = ArrayList<Pair<String, PhoneType>>()
         val residual = StringBuilder(text)
         var prevEnd = 0
@@ -374,7 +381,9 @@ object CardParser {
         while (true) {
             val m = PHONE.find(text, searchFrom) ?: break
             val before = text.substring(prevEnd, m.range.first)
-            val label = labelOf(before) ?: if (before.isBlank() || before.trim() == "/" || before.trim() == ",") lastLabel else null
+            val label = labelOf(before)
+                ?: (if (before.isBlank() || before.trim() == "/" || before.trim() == ",") lastLabel else null)
+                ?: defaultLabel
             var end = m.range.last + 1
 
             val chunks = splitRun(m.value)
@@ -530,6 +539,36 @@ object CardParser {
             }
         }
         return best
+    }
+
+    /**
+     * Formats one phone string (e.g. from the AI) the same way as numbers read on the phone.
+     * [hint] is what the source thinks it is; the number's own structure wins (a 98xxx number is a mobile).
+     */
+    fun formatPhones(raw: String, hint: PhoneType?): List<Pair<String, PhoneType>> =
+        extractPhones(fixDigitLookalikes(cleanLine(raw)), hint).first
+
+    /** Uppercases, fixes common OCR swaps (O/0, I/1, 2/Z) and returns the GSTIN if it has a valid shape, else null. */
+    fun cleanGstin(raw: String): String? {
+        val compact = raw.uppercase().filter { it.isLetterOrDigit() }
+        if (compact.length != 15) return null
+        val fixed = fixGstin(compact)
+        return if (GST_STRICT.matches(fixed)) fixed else null
+    }
+
+    /** GSTIN check digit (15th character) validation. */
+    fun gstinChecksumOk(gstin: String): Boolean {
+        if (gstin.length != 15) return false
+        val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        var sum = 0
+        for (i in 0 until 14) {
+            val v = chars.indexOf(gstin[i])
+            if (v < 0) return false
+            val product = v * (if (i % 2 == 0) 1 else 2)
+            sum += product / 36 + product % 36
+        }
+        val check = chars[(36 - sum % 36) % 36]
+        return gstin[14] == check
     }
 
     // ---------------------------------------------------------------- GSTIN

@@ -8,6 +8,9 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -52,6 +55,42 @@ object ImageUtils {
             square.compress(Bitmap.CompressFormat.JPEG, 82, out)
             out.toByteArray()
         }
+    }
+
+    /** The card photo as base64 JPEG for the AI (long side at most [maxDim] px). */
+    fun base64Jpeg(file: File, maxDim: Int = 2048, quality: Int = 85): String? {
+        val src = load(file) ?: return null
+        val scaled = scaleDown(src, maxDim)
+        val bytes = ByteArrayOutputStream().use { out ->
+            scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+            out.toByteArray()
+        }
+        return java.util.Base64.getEncoder().encodeToString(bytes)
+    }
+
+    /** A smaller copy of the card photo for the cloud backup (kept well under the 1 MB limit per photo). */
+    fun cloudJpeg(file: File): ByteArray? {
+        val src = load(file) ?: return null
+        for ((dim, q) in listOf(1200 to 70, 1000 to 62, 800 to 55)) {
+            val bytes = ByteArrayOutputStream().use { out ->
+                scaleDown(src, dim).compress(Bitmap.CompressFormat.JPEG, q, out)
+                out.toByteArray()
+            }
+            if (bytes.size < 700_000) return bytes
+        }
+        return null
+    }
+
+    /** Black-and-white QR code image for [text]. */
+    fun qrBitmap(text: String, size: Int = 720): Bitmap {
+        val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 1))
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bmp.setPixel(x, y, if (matrix.get(x, y)) Color.BLACK else Color.WHITE)
+            }
+        }
+        return bmp
     }
 
     private fun exifRotation(exif: ExifInterface): Int =

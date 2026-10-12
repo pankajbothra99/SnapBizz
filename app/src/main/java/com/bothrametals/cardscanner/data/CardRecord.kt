@@ -2,8 +2,6 @@ package com.bothrametals.cardscanner.data
 
 import com.bothrametals.cardscanner.parser.CardFields
 import com.bothrametals.cardscanner.parser.OcrLine
-import org.json.JSONArray
-import org.json.JSONObject
 
 /** One scanned business card as stored on the phone. */
 data class CardRecord(
@@ -14,77 +12,52 @@ data class CardRecord(
     val backImage: String?,
     val rawLines: List<OcrLine>,
     val fields: CardFields,
+    /** Saved to Contacts on THIS phone (never synced: each person saves to their own phone). */
     val savedToContacts: Boolean = false,
-)
+    /** "ai" = read by Gemini AI, "phone" = read by the phone's built-in reader */
+    val readBy: String = READ_BY_PHONE,
+    /** Field keys the user should double-check (shown in orange). See FieldKeys. */
+    val uncertain: List<String> = emptyList(),
+    /** Name of the team member who scanned it. */
+    val scannedBy: String = "",
+    /** Login email of the team member who scanned it ("" = scanned before login existed). */
+    val ownerEmail: String = "",
+    /** "company" = the whole team can see it, "private" = only the owner and admins. */
+    val visibility: String = VISIBILITY_COMPANY,
+    /** Changed on this phone and not yet sent to the cloud. */
+    val cloudDirty: Boolean = false,
+    /** Card photos already copied to the cloud. */
+    val imagesUploaded: Boolean = false,
+    /** The event this card was scanned at ("" = none). */
+    val eventId: String = "",
+    /** Event name kept on the card, so it shows even for people not in that event. */
+    val eventName: String = "",
+    /** Sub-groups of the event this card is in (e.g. "Scrap", "Finished products"); several allowed. */
+    val subGroupIds: List<String> = emptyList(),
+    /** Their names when last saved, so they show even for people not in that event. */
+    val subGroupNames: List<String> = emptyList(),
+    /** The sub-groups were picked automatically (AI or keywords) and nobody has confirmed them yet. */
+    val subGroupsSuggested: Boolean = false,
+    /** What the QR code(s) on the card held (contact, website link…), as read. */
+    val qrTexts: List<String> = emptyList(),
+    /** Short note on what the company does, written from its website. */
+    val webNote: String = "",
+    /** The page the note was written from. */
+    val webNoteUrl: String = "",
+    /** When the website was read (0 = not yet; then the app reads it in the background). */
+    val webCheckedAt: Long = 0L,
+    /** Set by bulk import: id of an existing card that looks like the same person ("" = none). */
+    val duplicateOf: String = "",
+    /** Front / back photo already copied to this phone's Gallery album (phone-only). */
+    val frontInGallery: Boolean = false,
+    val backInGallery: Boolean = false,
+) {
+    val isPrivate: Boolean get() = visibility == VISIBILITY_PRIVATE
 
-object JsonCodec {
-
-    fun toJson(r: CardRecord): JSONObject = JSONObject().apply {
-        put("id", r.id)
-        put("createdAt", r.createdAt)
-        put("updatedAt", r.updatedAt)
-        put("frontImage", r.frontImage ?: JSONObject.NULL)
-        put("backImage", r.backImage ?: JSONObject.NULL)
-        put("savedToContacts", r.savedToContacts)
-        put("rawLines", JSONArray().apply {
-            r.rawLines.forEach { put(JSONObject().put("t", it.text).put("h", it.height).put("s", it.side)) }
-        })
-        put("fields", fieldsToJson(r.fields))
+    companion object {
+        const val READ_BY_AI = "ai"
+        const val READ_BY_PHONE = "phone"
+        const val VISIBILITY_COMPANY = "company"
+        const val VISIBILITY_PRIVATE = "private"
     }
-
-    fun fromJson(o: JSONObject): CardRecord {
-        val linesJson = o.optJSONArray("rawLines") ?: JSONArray()
-        val lines = (0 until linesJson.length()).map { i ->
-            val l = linesJson.getJSONObject(i)
-            OcrLine(l.optString("t"), l.optInt("h"), l.optInt("s"))
-        }
-        return CardRecord(
-            id = o.getString("id"),
-            createdAt = o.optLong("createdAt"),
-            updatedAt = o.optLong("updatedAt"),
-            frontImage = nullableString(o, "frontImage"),
-            backImage = nullableString(o, "backImage"),
-            rawLines = lines,
-            fields = fieldsFromJson(o.optJSONObject("fields") ?: JSONObject()),
-            savedToContacts = o.optBoolean("savedToContacts"),
-        )
-    }
-
-    private fun fieldsToJson(f: CardFields) = JSONObject().apply {
-        put("prefix", f.prefix)
-        put("name", f.name)
-        put("jobTitle", f.jobTitle)
-        put("company", f.company)
-        put("mobiles", JSONArray(f.mobiles))
-        put("phones", JSONArray(f.phones))
-        put("faxes", JSONArray(f.faxes))
-        put("emails", JSONArray(f.emails))
-        put("websites", JSONArray(f.websites))
-        put("address", f.address)
-        put("gstin", f.gstin)
-        put("extraInfo", f.extraInfo)
-        put("notes", f.notes)
-    }
-
-    private fun fieldsFromJson(o: JSONObject) = CardFields(
-        prefix = o.optString("prefix"),
-        name = o.optString("name"),
-        jobTitle = o.optString("jobTitle"),
-        company = o.optString("company"),
-        mobiles = strings(o.optJSONArray("mobiles")),
-        phones = strings(o.optJSONArray("phones")),
-        faxes = strings(o.optJSONArray("faxes")),
-        emails = strings(o.optJSONArray("emails")),
-        websites = strings(o.optJSONArray("websites")),
-        address = o.optString("address"),
-        gstin = o.optString("gstin"),
-        extraInfo = o.optString("extraInfo"),
-        notes = o.optString("notes"),
-    )
-
-    private fun strings(a: JSONArray?): List<String> =
-        if (a == null) emptyList() else (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
-
-    private fun nullableString(o: JSONObject, key: String): String? =
-        if (!o.has(key) || o.isNull(key)) null else o.optString(key).takeIf { it.isNotBlank() }
 }

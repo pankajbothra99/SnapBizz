@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- No permissions needed: the scanner, text reading and "Save to Contacts" screen
-         all run through Google Play services / the phone's own Contacts app. -->
+    <!-- Internet is used for the free AI reading (Google Gemini) and the company cloud backup (Firebase).
+         Scanning and reading on the phone work offline.
+         No camera/contacts permissions needed: the scanner and "Save to Contacts" screen
+         run through Google Play services / the phone's own Contacts app. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 8–9 only: copy card photos into the Gallery album "Card Scanner" (Android 10+ needs no permission) -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.CardScanner">
 
         <activity

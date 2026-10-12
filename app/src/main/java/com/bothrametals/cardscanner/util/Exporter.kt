@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.bothrametals.cardscanner.data.CardRecord
+import com.bothrametals.cardscanner.parser.AddressSplitter
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -20,8 +21,8 @@ object Exporter {
     fun csv(records: List<CardRecord>): ByteArray {
         val header = listOf(
             "Name", "Prefix", "Designation", "Company", "Mobile 1", "Mobile 2", "Office Phone 1", "Office Phone 2",
-            "Fax", "Email 1", "Email 2", "Website", "Address", "GSTIN", "My Notes", "Other Text on Card",
-            "Scanned On", "Saved to Contacts",
+            "Fax", "Email 1", "Email 2", "Website", "Address", "GSTIN", "What They Do", "From Website", "Keywords", "My Notes", "Other Text on Card",
+            "Scanned On", "Scanned By", "Event", "Sub-groups", "Read By", "Saved to Contacts",
         )
         val sb = StringBuilder()
         sb.append(header.joinToString(",") { esc(it) }).append("\r\n")
@@ -33,8 +34,11 @@ object Exporter {
                 f.phones.getOrElse(0) { "" }, f.phones.drop(1).joinToString(" / "),
                 f.faxes.joinToString(" / "),
                 f.emails.getOrElse(0) { "" }, f.emails.drop(1).joinToString(" / "),
-                f.websites.joinToString(" / "), f.address, f.gstin, f.notes, f.extraInfo.replace("\n", " | "),
-                dateFmt.format(Date(r.createdAt)), if (r.savedToContacts) "Yes" else "No",
+                f.websites.joinToString(" / "), f.address, f.gstin, f.business, r.webNote, f.keywords.joinToString(", "),
+                f.notes, f.extraInfo.replace("\n", " | "),
+                dateFmt.format(Date(r.createdAt)), r.scannedBy, r.eventName, r.subGroupNames.joinToString(", "),
+                if (r.readBy == CardRecord.READ_BY_AI) "AI" else "Phone",
+                if (r.savedToContacts) "Yes" else "No",
             )
             sb.append(row.joinToString(",") { esc(it) }).append("\r\n")
         }
@@ -55,15 +59,20 @@ object Exporter {
         sb.append("BEGIN:VCARD\r\nVERSION:3.0\r\n")
         sb.append("N:${v(last)};${v(first)};;${v(f.prefix)};\r\n")
         sb.append("FN:${v(full)}\r\n")
-        if (f.company.isNotBlank()) sb.append("ORG:${v(f.company)}\r\n")
+        if (f.company.isNotBlank()) sb.append("ORG:${v(f.company)}" + (if (f.business.isNotBlank()) ";${v(f.business.take(80))}" else "") + "\r\n")
+        val categories = (r.subGroupNames + f.keywords).distinctBy { it.lowercase() }
+        if (categories.isNotEmpty()) sb.append("CATEGORIES:${categories.joinToString(",") { v(it) }}\r\n")
         if (f.jobTitle.isNotBlank()) sb.append("TITLE:${v(f.jobTitle)}\r\n")
         f.mobiles.forEach { sb.append("TEL;TYPE=CELL:${v(it)}\r\n") }
         f.phones.forEach { sb.append("TEL;TYPE=WORK,VOICE:${v(it)}\r\n") }
         f.faxes.forEach { sb.append("TEL;TYPE=WORK,FAX:${v(it)}\r\n") }
         f.emails.forEach { sb.append("EMAIL;TYPE=INTERNET,WORK:${v(it)}\r\n") }
         f.websites.forEach { sb.append("URL:${v(it)}\r\n") }
-        if (f.address.isNotBlank()) sb.append("ADR;TYPE=WORK:;;${v(f.address)};;;;\r\n")
-        val note = ContactSaver.buildNote(f, r.createdAt)
+        if (f.address.isNotBlank()) {
+            val a = AddressSplitter.split(f.address)
+            sb.append("ADR;TYPE=WORK:;;${v(a.street.ifBlank { f.address })};${v(a.city)};${v(a.state)};${v(a.postcode)};${v(a.country)}\r\n")
+        }
+        val note = ContactSaver.buildNote(f, r.createdAt, r.scannedBy, r.eventName, r.subGroupNames, r.webNote)
         if (note.isNotBlank()) sb.append("NOTE:${v(note)}\r\n")
         sb.append("END:VCARD\r\n")
         return sb.toString()

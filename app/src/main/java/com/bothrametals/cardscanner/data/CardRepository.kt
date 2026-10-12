@@ -37,6 +37,25 @@ class CardRepository(private val context: Context) {
         record.backImage?.let { File(it).delete() }
     }
 
+    /** Removes every card from this phone (used when signing out; the cards stay safe in the cloud). */
+    fun deleteAll() {
+        dir.listFiles { f -> f.isFile }?.forEach { it.delete() }
+        imageDir.listFiles()?.forEach { it.delete() }
+    }
+
+    /** Renames a photo in the card photo folder (used by bulk import) and returns the new file. */
+    fun renameImage(file: File, newName: String): File {
+        val dest = File(imageDir, newName)
+        return if (file.renameTo(dest)) dest else file
+    }
+
+    /** Saves a photo downloaded from the cloud and returns its path. */
+    fun saveImageBytes(fileName: String, bytes: ByteArray): String {
+        val f = File(imageDir, fileName)
+        f.writeBytes(bytes)
+        return f.absolutePath
+    }
+
     /** Copies a scanned/picked image into app storage (shrunk to a sensible size) and returns the file. */
     fun importImage(uri: Uri, fileName: String): File {
         val dest = File(imageDir, fileName)

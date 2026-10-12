@@ -21,6 +21,10 @@ data class CardFields(
     val websites: List<String> = emptyList(),
     val address: String = "",
     val gstin: String = "",
+    /** What the company does, e.g. "Manufacturers of aluminium alloy ingots & die castings". */
+    val business: String = "",
+    /** Search words: products, services, materials, industry (saved in the contact's notes). */
+    val keywords: List<String> = emptyList(),
     /** Other text printed on the card (taglines, product lists, second address...). */
     val extraInfo: String = "",
     /** The user's own notes, e.g. "Met at Aluminium India expo, wants 20 MT ingots". */
@@ -30,7 +34,7 @@ data class CardFields(
         get() = name.ifBlank { company.ifBlank { emails.firstOrNull() ?: mobiles.firstOrNull() ?: "Unnamed card" } }
 
     fun searchText(): String = listOf(
-        name, jobTitle, company, address, gstin, extraInfo, notes,
+        name, jobTitle, company, address, gstin, extraInfo, notes, business, keywords.joinToString(" "),
         mobiles.joinToString(" "), phones.joinToString(" "), emails.joinToString(" "), websites.joinToString(" "),
     ).joinToString(" ").lowercase()
 }
